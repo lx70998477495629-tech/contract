@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: heyue
+      POSTGRES_USER: heyue
+      POSTGRES_PASSWORD: change-me
+    ports:
+      - "5432:5432"
+    volumes:
+      - heyue_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U heyue -d heyue"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  heyue_postgres:

@@ -1,0 +1,12 @@
+{
+  "name": "heyue-contract-assistant",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w @heyue/api\" \"npm run dev -w @heyue/web\"",
+    "build": "npm run build -w @heyue/api && npm run build -w @heyue/web",
+    "test": "npm run test -w @heyue/api",
+    "lint": "npm run lint -w @heyue/api && npm run lint -w @heyue/web"
+  },
+  "devDependencies": { "concurrently": "^9.1.2" }
+}

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>合约筛选与下单 - 原型</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="prototype-addon.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">↗</span><span>合约助手</span><em>原型</em></div>
+      <nav aria-label="主导航">
+        <button class="nav-item active" data-page="screener"><span>⌁</span>合约筛选</button>
+        <button class="nav-item" data-page="trade"><span>↕</span>下单</button>
+        <button class="nav-item" data-page="orders"><span>□</span>订单与持仓</button>
+        <button class="nav-item" data-page="settings"><span>⚙</span>连接设置</button>
+      </nav>
+      <div class="sidebar-note"><span class="dot"></span> 测试网演示模式<br /><small>不会提交真实订单</small></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><p class="eyebrow">USDT 永续 · 交易终端演示</p><h1 id="page-title">合约筛选</h1></div>
+        <div class="top-status"><span class="pill demo" id="mode-pill">测试网演示</span><span class="live"><i></i> 市场数据：已同步</span></div>
+      </header>
+
+      <section class="page active" id="screener">
+        <span id="candidate-count" class="hidden"></span><span id="candidate-note" class="hidden"></span>
+        <div class="page-heading"><div><h2>合约筛选</h2><p>仅使用最近一根已收盘 K 线；信号只进入候选池，不自动开仓。</p></div><button class="button primary" id="refresh-screen">↻ 重新筛选</button></div>
+        <article class="card strategy-card">
+          <div><p class="card-kicker">当前规则</p><h3>按连续同向 K 线根数入池</h3></div>
+          <div class="rule"><span class="up-badge">连续上涨</span><b>→ 做多候选</b></div>
+          <div class="rule"><span class="down-badge">连续下跌</span><b>→ 做空候选</b></div>
+          <div class="rule muted">按每根已收盘 K 线的收盘价相对开盘价判断，并包含最近一根已收盘 K 线</div>
+        </article>
+        <article class="card threshold-card"><div class="threshold-heading"><div><h3>筛选阈值与组合模式</h3><p>连续根数只计算已收盘 K 线，并包含最近一根已收盘 K 线；上涨/下跌按该 K 线收盘价相对开盘价判断。</p></div><button class="button ghost" id="apply-threshold">应用阈值</button></div><div class="threshold-grid"><label>周线上涨连续根数<input id="weekly-up" type="number" min="1" value="3" /></label><label>周线下跌连续根数<input id="weekly-down" type="number" min="1" value="3" /></label><label>日线上涨连续根数<input id="daily-up" type="number" min="1" value="2" /></label><label>日线下跌连续根数<input id="daily-down" type="number" min="1" value="2" /></label></div><div class="mode-switch"><span>组合模式</span><div class="segmented"><button class="selected" data-combination="any">任一周期命中</button><button data-combination="all">全部周期命中</button></div><small id="combination-help">周线或日线达到对应方向阈值，即进入候选池。</small></div></article>
+        <div class="toolbar"><div class="segmented"><button class="selected" data-filter="all">全部 <b>6</b></button><button data-filter="long">做多 <b>3</b></button><button data-filter="short">做空 <b>3</b></button></div><label class="check"><input type="checkbox" id="empty-demo" /> 空状态演示</label><button class="link-button" id="error-demo">模拟行情异常</button></div>
+        <div class="state-box hidden" id="loading-state"><span class="spinner"></span><strong>正在读取已收盘 K 线…</strong><p>演示加载状态</p></div>
+        <div class="state-box hidden" id="empty-state"><strong>本次没有符合条件的合约</strong><p id="empty-copy">当前阈值与组合模式下，没有合约进入候选池。</p><button class="button ghost" id="restore-data">恢复示例数据</button></div>
+        <div class="state-box hidden error" id="error-state"><strong>暂时无法读取市场数据</strong><p>演示错误状态：请检查网络或稍后重试。</p><button class="button ghost" id="retry-screen">重新筛选</button></div>
+        <article class="card table-card" id="screen-table-wrap"><div class="table-wrap"><table><thead><tr><th>合约</th><th>方向</th><th>周线命中</th><th>日线命中</th><th>入池原因</th><th>最新价</th><th>操作</th></tr></thead><tbody id="screen-table"></tbody></table></div></article>
+        <p class="caption">已确认：上涨 / 下跌由每根已收盘 K 线的收盘价相对开盘价判断，并包含最近一根已收盘 K 线。组合模式切换会实时改变候选池与入池原因。</p>
+      </section>
+
+      <section class="page" id="trade">
+        <div class="terminal-banner"><div><b id="terminal-symbol">未选择合约</b><span> · USDT 永续</span><small>交易终端式演示布局，不是币安页面，不显示真实行情</small></div><span class="pill demo" id="trade-mode-pill">演示模式</span></div>
+        <div class="warning real-warning hidden" id="real-warning">⚠ 实盘模式：正式产品只能手动交易，必须风险预览与不可跳过的二次确认。本原型不会真实成交。</div>
+        <div class="terminal-grid">
+          <article class="terminal-chart"><div class="terminal-head"><span>价格走势占位</span><span class="muted">示例 K 线 · 非实时</span></div><div class="chart-placeholder"><div class="grid-lines"></div><div class="candles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><b>示例行情图</b></div><div class="terminal-stats"><span>标记价 <b id="terminal-price">--</b></span><span>24h 涨跌 <b class="green">示例</b></span><span>24h 成交额 <b>示例</b></span></div></article>
+          <aside class="terminal-book"><div class="terminal-head"><span>盘口 / 最新成交</span><span class="muted">占位数据</span></div><div class="book-lines"><p>卖 3 <b>--</b><em>--</em></p><p>卖 2 <b>--</b><em>--</em></p><p>卖 1 <b>--</b><em>--</em></p><strong id="book-price">--</strong><p>买 1 <b>--</b><em>--</em></p><p>买 2 <b>--</b><em>--</em></p><p>买 3 <b>--</b><em>--</em></p></div></aside>
+          <article class="terminal-order"><div class="terminal-head"><span>手动下单</span><span class="pill demo">不真实提交</span></div><label>候选合约<select id="symbol"></select></label><div id="no-symbols" class="terminal-empty hidden">当前筛选没有候选合约。请返回“合约筛选”调整阈值或组合模式。</div><div class="side-choice"><button class="side selected buy" data-side="BUY">买入 / 做多</button><button class="side sell" data-side="SELL">卖出 / 做空</button></div><div class="form-row"><label>订单类型<select id="order-type"><option value="MARKET">市价</option><option value="LIMIT">限价</option></select></label><label>杠杆<select id="leverage"><option>3x</option><option selected>5x</option><option>10x</option><option>20x</option></select></label></div><label id="limit-price-row" class="hidden">限价（USDT）<input id="limit-price" type="number" placeholder="输入限价" /></label><label>保证金（USDT）<input id="margin" type="number" min="1" value="100" /></label><div class="form-row"><label>止损价（必填）<input id="stop-loss" type="number" placeholder="例如 102,000" /></label><label>止盈价（可选）<input id="take-profit" type="number" placeholder="例如 108,000" /></label></div><div id="form-error" class="form-error hidden"></div><button id="preview-order" class="button primary wide">预览并手动确认</button><p class="terminal-disclaimer">示例原型：不会连接交易所或发送订单。</p></article>
+        </div>
+        <aside class="card risk-card terminal-risk"><div class="card-title"><div><h2>订单风险预览</h2><p id="trade-description">参数变化后自动更新，确认前不会产生订单。</p></div></div><dl id="risk-preview"></dl><div class="risk-note" id="risk-note">开仓前必须填写止损。正式版本会校验余额、精度和账户设置。</div></aside>
+      </section>
+
+      <section class="page" id="orders">
+        <div class="page-heading"><div><h2>订单与持仓</h2><p>以下均为模拟状态，可点击查看常见状态变化。</p></div></div>
+        <div class="tabs"><button class="tab selected" data-order-tab="positions">当前持仓 <b id="tab-position-count">2</b></button><button class="tab" data-order-tab="open">当前委托 <b id="tab-pending-count">1</b></button><button class="tab" data-order-tab="history">订单历史</button></div>
+        <article class="card table-card"><div class="table-wrap"><table><thead id="order-head"></thead><tbody id="order-table"></tbody></table></div></article>
+        <div class="state-box hidden" id="no-order-state"><strong>暂无记录</strong><p>在下单页面完成模拟下单后，记录会显示在这里。</p></div>
+      </section>
+
+      <section class="page" id="settings">
+        <div class="page-heading"><div><h2>连接与风控设置</h2><p>原型仅展示配置流程，不保存 Key，也不连接币安。</p></div></div>
+        <div class="settings-grid"><article class="card"><h2>交易环境</h2><p class="muted">可切换流程演示；本原型两种模式都不会真实下单。</p><label>运行环境<select id="environment"><option value="testnet">USDⓈ-M 测试网</option><option value="live">USDⓈ-M 实盘</option></select></label><label>API Key<input placeholder="原型不需要填写" disabled /></label><label>API Secret<input placeholder="原型不需要填写" disabled /></label><div class="inline-actions"><button class="button secondary" id="test-connect">测试连接</button><span class="connection-result" id="connection-result"></span></div></article>
+          <article class="card"><h2>实盘下单风控</h2><p class="muted">仅支持手动下单；正式版必须由后端强制完成风险确认，前端不能绕过。</p><label class="stop-switch"><input id="emergency-stop" type="checkbox" /> <span><b>紧急停止开仓</b><small>开启后，禁止提交新的开仓订单</small></span></label><p class="risk-note">实盘订单必须先查看风险预览，并在最终弹窗勾选风险声明后，才可以提交。</p></article>
+          <article class="card full-settings"><h2>持续可用方式</h2><p>此原型是纯静态网页，部署一次即可通过固定网址使用，不需要每天打开 Codex。</p><div class="deploy-steps"><p><b>演示：</b>双击 <code>start.cmd</code> 可在本机预览。</p><p><b>长期使用：</b>将本目录的静态文件上传到你已有的网站空间，或后续部署到正式服务器。</p><p><b>正式交易：</b>API Secret 必须放到服务器安全环境，不能放进前端网页。实盘风控必须在后端再次校验。</p></div></article></div>
+      </section>
+    </main>
+  </div>
+  <div class="modal-backdrop hidden" id="modal"><div class="modal"><button class="close" id="close-modal">×</button><p class="card-kicker">不可跳过的最终确认</p><h2 id="modal-title">确认提交模拟订单？</h2><div id="confirm-summary" class="confirm-summary"></div><p class="risk-note" id="modal-risk">这是演示操作，只会更新本页面的模拟记录。</p><label class="confirm-check hidden" id="live-confirm-wrap"><input type="checkbox" id="live-confirm" /> 我已理解实盘交易可能造成资金损失，并确认按以上参数手动下单。</label><div class="modal-actions"><button class="button ghost" id="cancel-order">返回修改</button><button class="button primary" id="confirm-order">确认模拟下单</button></div></div></div>
+  <div class="toast hidden" id="toast"></div>
+  <script src="prototype-bootstrap.js"></script>
+  <script src="app.js"></script>
+  <script src="prototype-interactions.js"></script>
+  <script src="dual-order.js"></script>
+</body>
+</html>
