@@ -1,9 +1,3 @@
-import { z } from 'zod';
-
-const schema = z.object({
-  DATABASE_URL: z.string().url(), APP_MASTER_KEY_BASE64: z.string().min(40),
-  SESSION_SECRET: z.string().min(24), APP_ORIGIN: z.string().url().default('http://localhost:5173'),
-  PORT: z.coerce.number().int().positive().default(3001), INITIAL_ADMIN_PASSWORD: z.string().min(12).optional()
-});
-export type Config = z.infer<typeof schema>;
-export function getConfig(env = process.env): Config { return schema.parse(env); }
+import{z}from'zod';
+const schema=z.object({DATABASE_URL:z.string().url().refine(x=>!x.includes('change-me'),'DATABASE_URL 不得使用默认密码'),APP_MASTER_KEY_BASE64:z.string().refine(x=>{try{return Buffer.from(x,'base64').length===32}catch{return false}},'APP_MASTER_KEY_BASE64 必须是32字节Base64'),SESSION_SECRET:z.string().min(32).refine(x=>!x.includes('replace-with'),'SESSION_SECRET 不得使用示例值'),APP_ORIGIN:z.string().url().default('http://localhost:5173'),PORT:z.coerce.number().int().positive().default(3001),INITIAL_ADMIN_PASSWORD:z.string().min(12).optional(),NODE_ENV:z.enum(['development','test','production']).default('development'),COOKIE_SECURE:z.enum(['true','false']).transform(x=>x==='true').default('false')}).superRefine((x,ctx)=>{if(x.NODE_ENV==='production'&&(!x.COOKIE_SECURE||!x.APP_ORIGIN.startsWith('https://')||!x.INITIAL_ADMIN_PASSWORD))ctx.addIssue({code:'custom',message:'生产环境必须启用 Secure Cookie、HTTPS APP_ORIGIN 并设置初始管理员密码'})});
+export type Config=z.infer<typeof schema>;export function getConfig(env=process.env):Config{return schema.parse(env)}

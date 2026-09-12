@@ -1,0 +1,17 @@
+DROP INDEX IF EXISTS audit_client_order_id_unique;
+CREATE INDEX IF NOT EXISTS audit_client_order_id_idx ON audit_event(environment,client_order_id,created_at DESC) WHERE client_order_id IS NOT NULL;
+CREATE TABLE IF NOT EXISTS order_intent (id UUID PRIMARY KEY,user_id UUID NOT NULL REFERENCES app_user(id),environment TEXT NOT NULL CHECK(environment IN ('testnet','live')),symbol TEXT NOT NULL,direction TEXT NOT NULL CHECK(direction IN ('LONG','SHORT')),order_kind TEXT NOT NULL CHECK(order_kind IN ('REGULAR','ALGO')),client_order_id TEXT NOT NULL UNIQUE,status TEXT NOT NULL CHECK(status IN ('INTENT','SUBMITTING','ACCEPTED','REJECTED','UNKNOWN','RECOVERED')),request_payload JSONB NOT NULL,response_payload JSONB,error_code TEXT,error_message TEXT,created_at TIMESTAMPTZ NOT NULL DEFAULT now(),updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS order_intent_pending_idx ON order_intent(user_id,environment,symbol,direction,status) WHERE status IN ('SUBMITTING','UNKNOWN');
+CREATE UNIQUE INDEX IF NOT EXISTS order_intent_one_pending_direction ON order_intent(user_id,environment,symbol,direction) WHERE status IN ('SUBMITTING','UNKNOWN');
+ALTER TABLE audit_event ADD COLUMN IF NOT EXISTS order_intent_id UUID REFERENCES order_intent(id);
+ALTER TABLE audit_event ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES app_user(id);
+ALTER TABLE audit_event ADD COLUMN IF NOT EXISTS request_id TEXT;
+ALTER TABLE audit_event ADD COLUMN IF NOT EXISTS result TEXT;
+ALTER TABLE audit_event ADD COLUMN IF NOT EXISTS error_class TEXT;
+CREATE TABLE IF NOT EXISTS user_session(token_hash TEXT PRIMARY KEY,user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,expires_at TIMESTAMPTZ NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS user_session_expiry_idx ON user_session(expires_at);
+CREATE TABLE IF NOT EXISTS candidate_scan(id UUID PRIMARY KEY,user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,environment TEXT NOT NULL CHECK(environment IN ('testnet','live')),rule_hash TEXT NOT NULL,success_count INTEGER NOT NULL,failure_count INTEGER NOT NULL,failed_symbols JSONB NOT NULL DEFAULT '[]',created_at TIMESTAMPTZ NOT NULL DEFAULT now(),activated_at TIMESTAMPTZ);
+ALTER TABLE candidate_pool ADD COLUMN IF NOT EXISTS scan_id UUID REFERENCES candidate_scan(id);
+ALTER TABLE candidate_pool DROP CONSTRAINT IF EXISTS candidate_pool_pkey;
+ALTER TABLE candidate_pool ADD PRIMARY KEY(user_id,environment,symbol,direction);
+CREATE INDEX IF NOT EXISTS candidate_scan_active_idx ON candidate_scan(user_id,environment,activated_at DESC) WHERE activated_at IS NOT NULL;

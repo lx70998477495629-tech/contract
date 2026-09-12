@@ -1,13 +1,18 @@
-import { createHmac } from 'node:crypto'; import { decrypt } from './crypto.js'; import type { Config } from './config.js';
-export type Environment = 'testnet'|'live';
-const urls={ testnet:'https://testnet.binancefuture.com', live:'https://fapi.binance.com' } as const;
-export class BinanceGateway {
-  private offset=0; constructor(private config:Config){}
-  base(env:Environment){ return urls[env]; }
-  async request(env:Environment,path:string, params:Record<string,string|number|boolean>={}, init:RequestInit={}, retries=2) { for(let i=0;;i++){ const res=await fetch(`${this.base(env)}${path}?${new URLSearchParams(Object.entries(params).map(([k,v])=>[k,String(v)]))}`,init); if((res.status===429||res.status>=500)&&i<retries){ await new Promise(r=>setTimeout(r,300*(i+1))); continue; } if(!res.ok) throw new Error(`币安接口错误 ${res.status}`); return res.json(); } }
-  async exchangeInfo(env:Environment='live'){ return this.request(env,'/fapi/v1/exchangeInfo'); }
-  async klines(env:Environment,symbol:string, interval:'1d'|'1w', limit:number){ return this.request(env,'/fapi/v1/klines',{symbol,interval,limit}); }
-  async markPrice(env:Environment,symbol:string){return this.request(env,'/fapi/v1/premiumIndex',{symbol}) as Promise<{markPrice:string}>;}
-  async syncTime(env:Environment){ const res=await fetch(`${this.base(env)}/fapi/v1/time`); if(!res.ok) throw new Error('无法同步币安时间'); const data=await res.json() as {serverTime:number}; this.offset=data.serverTime-Date.now(); return data.serverTime; }
-  async signed(env:Environment, path:string, method:'GET'|'POST'|'DELETE', apiKey:string, encryptedSecret:string, params:Record<string,string|number|boolean>) { const secret=decrypt(encryptedSecret,this.config.APP_MASTER_KEY_BASE64); const all={...params,timestamp:Date.now()+this.offset,recvWindow:5000}; const query=new URLSearchParams(Object.entries(all).map(([k,v])=>[k,String(v)])); query.set('signature',createHmac('sha256',secret).update(query.toString()).digest('hex')); const response=await fetch(`${this.base(env)}${path}?${query}`,{method,headers:{'X-MBX-APIKEY':apiKey}}); if(!response.ok) throw new Error(`币安私有接口错误 ${response.status}`); return response.json(); }
+import {createHmac}from'node:crypto';import{decrypt}from'./crypto.js';import type{Config}from'./config.js';
+export type Environment='testnet'|'live';const urls={testnet:'https://testnet.binancefuture.com',live:'https://fapi.binance.com'}as const;
+export const UNKNOWN_EXECUTION_CODES=new Set([-1000,-1001,-1006,-1007]);
+export class BinanceApiError extends Error{public ambiguous:boolean;constructor(message:string,public status?:number,public code?:number,ambiguous=true){super(message);this.ambiguous=ambiguous||UNKNOWN_EXECUTION_CODES.has(code??0)}}
+const wait=(ms:number)=>new Promise(r=>setTimeout(r,ms));
+export class BinanceGateway{
+ private offsets:Record<Environment,number>={testnet:0,live:0};private nextPublic:Record<Environment,number>={testnet:0,live:0};private queues:Record<Environment,Promise<void>>={testnet:Promise.resolve(),live:Promise.resolve()};
+ constructor(private config:Config,private fetcher:typeof fetch=fetch){}
+ base(env:Environment){return urls[env]}
+ private async body(response:Response){const text=await response.text();try{return JSON.parse(text)}catch{return{text}}}
+ private async throttle(env:Environment){const previous=this.queues[env];let release!:()=>void;this.queues[env]=new Promise<void>(resolve=>{release=resolve});await previous;const delay=Math.max(0,this.nextPublic[env]-Date.now());if(delay)await wait(delay);this.nextPublic[env]=Date.now()+50;release()}
+ async request(env:Environment,path:string,params:Record<string,string|number|boolean>={},retries=3){for(let i=0;;i++){await this.throttle(env);let response:Response;try{response=await this.fetcher(`${this.base(env)}${path}?${new URLSearchParams(Object.entries(params).map(([k,v])=>[k,String(v)]))}`,{signal:AbortSignal.timeout(10_000)})}catch(error){if(i<retries){await wait(250*2**i);continue}throw new BinanceApiError(`币安公共接口网络错误：${(error as Error).message}`)}const data=await this.body(response);if(response.ok)return data;if((response.status===429||response.status>=500)&&i<retries){const retry=Number(response.headers.get('retry-after'));await wait(Number.isFinite(retry)&&retry>0?retry*1000:250*2**i);continue}throw new BinanceApiError(`币安公共接口错误 ${response.status}`,response.status,data?.code,response.status>=500||response.status===429)}}
+ async exchangeInfo(env:Environment='live'){return this.request(env,'/fapi/v1/exchangeInfo')}
+ async klines(env:Environment,symbol:string,interval:'1d'|'1w',limit:number){return this.request(env,'/fapi/v1/klines',{symbol,interval,limit})}
+ async markPrice(env:Environment,symbol:string){return this.request(env,'/fapi/v1/premiumIndex',{symbol})as Promise<{markPrice:string}>}
+ async syncTime(env:Environment){const data=await this.request(env,'/fapi/v1/time',{},1)as{serverTime:number};this.offsets[env]=data.serverTime-Date.now();return data.serverTime}
+ async signed(env:Environment,path:string,method:'GET'|'POST'|'DELETE',apiKey:string,encryptedSecret:string,params:Record<string,string|number|boolean>){const secret=decrypt(encryptedSecret,this.config.APP_MASTER_KEY_BASE64),all={...params,timestamp:Date.now()+this.offsets[env],recvWindow:5000},query=new URLSearchParams(Object.entries(all).map(([k,v])=>[k,String(v)]));query.set('signature',createHmac('sha256',secret).update(query.toString()).digest('hex'));let response:Response;try{response=await this.fetcher(`${this.base(env)}${path}?${query}`,{method,headers:{'X-MBX-APIKEY':apiKey},signal:AbortSignal.timeout(10_000)})}catch(error){throw new BinanceApiError(`币安私有接口网络状态未知：${(error as Error).message}`)}const data=await this.body(response);if(!response.ok)throw new BinanceApiError(`币安私有接口错误 ${response.status}${data?.code?` (${data.code})`:''}`,response.status,data?.code,response.status>=500||[408,409,418,429].includes(response.status)||UNKNOWN_EXECUTION_CODES.has(data?.code));return data}
 }

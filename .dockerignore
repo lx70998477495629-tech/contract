@@ -1,0 +1,8 @@
+node_modules
+apps/*/dist
+.git
+.env
+secrets
+*.log
+OPEN_PROTOTYPE.html
+codex-clipboard-*.png
