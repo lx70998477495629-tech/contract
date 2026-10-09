@@ -1,0 +1,15 @@
+{
+  "client_id": "https://cdn.jsdelivr.net/gh/lx70998477495629-tech/contract@codex%2Fagent-os-identity-20261010/oauth-client.json",
+  "client_name": "Binance Strategy Simulator",
+  "redirect_uris": [
+    "http://127.0.0.1:8000/api/agent-os/oauth/callback"
+  ],
+  "grant_types": [
+    "authorization_code"
+  ],
+  "response_types": [
+    "code"
+  ],
+  "token_endpoint_auth_method": "none",
+  "application_type": "native"
+}
